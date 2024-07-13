@@ -10,7 +10,7 @@ from tqdm import tqdm
 load_dotenv()
 
 # 從環境變量中獲取 OpenAI API 金鑰
-api_key = os.getenv('KE')
+api_key = os.getenv('OPEN_API_KEY')
 
 # 設置您的OpenAI API密鑰
 client = openai.OpenAI(
