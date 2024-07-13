@@ -5,7 +5,7 @@
 - [資料前處理與 GPT-4o Fine-tuning](#資料前處理與-gpt-4o-fine-tuning)
   - [專案概述](#專案概述)
   - [專案結構](#專案結構)
-  - [流程概述](#流程概述)
+  - [專案流程](#專案流程)
     - [1. 資料收集 (`scrape.py`)](#1-資料收集-scrapepy)
     - [2. 資料清洗 (`cleanse.py`)](#2-資料清洗-cleansepy)
     - [3. 圖片標籤生成 (`vision.py`)](#3-圖片標籤生成-visionpy)
@@ -30,7 +30,7 @@
 - `profile.py`：使用 OpenAI 的 Text Generation API 生成用戶自介標籤的腳本。
 - `form_dataset.py`：將資料拆分成適合微調 GPT-4o 模型的訓練集的腳本。
 
-## 流程概述
+## 專案流程
 
 ### 1. 資料收集 (`scrape.py`)
 
