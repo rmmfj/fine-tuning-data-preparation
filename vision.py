@@ -3,11 +3,18 @@ import os
 import re
 
 import openai
+from dotenv import load_dotenv
 from tqdm import tqdm
+
+# 載入 .env 文件中的環境變量
+load_dotenv()
+
+# 從環境變量中獲取 OpenAI API 金鑰
+api_key = os.getenv('OPENAI_API_KEY')
 
 # 設置您的OpenAI API密鑰
 client = openai.OpenAI(
-    api_key='sk-proj-xOcdsrzOtF0DxnYNdhTQT3BlbkFJtJoWkZPATfD9XGDgzMQq')  # 請替換為您的實際API密鑰
+    api_key=api_key)
 
 
 def preprocess_and_parse_json(json_string):
