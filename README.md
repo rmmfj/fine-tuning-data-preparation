@@ -2,6 +2,22 @@
 
 本文件詳細描述了該專案從資料收集、資料清洗、標籤生成、資料拆分到模型微調的完整流程，也引用 OpenAI 官方文件中的相關 API 資料，幫助你了解專案流程。
 
+- [資料前處理與 GPT-4o Fine-tuning](#資料前處理與-gpt-4o-fine-tuning)
+  - [專案概述](#專案概述)
+  - [專案結構](#專案結構)
+  - [流程概述](#流程概述)
+    - [1. 資料收集 (`scrape.py`)](#1-資料收集-scrapepy)
+    - [2. 資料清洗 (`cleanse.py`)](#2-資料清洗-cleansepy)
+    - [3. 圖片標籤生成 (`vision.py`)](#3-圖片標籤生成-visionpy)
+      - [使用的 Prompt](#使用的-prompt)
+      - [範例輸入輸出](#範例輸入輸出)
+    - [4. 自介標籤生成 (`profile.py`)](#4-自介標籤生成-profilepy)
+      - [使用的 Prompt](#使用的-prompt-1)
+      - [範例輸入輸出](#範例輸入輸出-1)
+    - [5. 資料拆分 (`form_dataset.py`)](#5-資料拆分-form_datasetpy)
+      - [範例輸入輸出](#範例輸入輸出-2)
+    - [6. 模型微調](#6-模型微調)
+
 ## 專案概述
 
 專案包含從穿搭平台 [wear.jp](https://wear.jp/) 爬取該平台每月網路評選前一百名最佳穿搭資料。接著，進行資料清洗，並使用 OpenAI 的 Vision 和 Text Generation API 進行標籤生成，最終 fine-tune GPT-4o 模型。
