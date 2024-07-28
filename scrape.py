@@ -65,6 +65,9 @@ def scrape_model_details(model_url):
         height_tag = soup.find("li", text=lambda x: x and "cm" in x)
         height = int(height_tag.text.strip().replace(
             "cm", "")) if height_tag else None
+        age_tag = soup.find("li", text=lambda x: x and "歳" in x)
+        age = int(age_tag.text.strip().replace(
+            "歳", "")) if age_tag else None
         bio_tag = soup.find("section", class_="profile").find(
             "p", class_="txt")
         bio = bio_tag.text.strip() if bio_tag else ""
@@ -72,6 +75,7 @@ def scrape_model_details(model_url):
         return {
             "gender": gender,
             "height": height,
+            "age": age,
             "bio": bio
         }
     except Exception as e:
@@ -79,12 +83,13 @@ def scrape_model_details(model_url):
         return {
             "gender": "Unknown",
             "height": None,
+            "age": None,
             "bio": ""
         }
 
 
 def main():
-    start_date = datetime(2021, 1, 1)
+    start_date = datetime(2024, 5, 1)
     end_date = datetime(2024, 6, 1)
     urls = generate_urls(start_date, end_date)
 
@@ -94,7 +99,7 @@ def main():
         page_data = scrape_page(url)
         all_data.extend(page_data)
 
-    # 儲存結果到JSON文件
+    # Save results to JSON file
     if all_data:
         with open("output.json", "w", encoding="utf-8") as json_file:
             json.dump(all_data, json_file, ensure_ascii=False, indent=4)

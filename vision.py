@@ -10,12 +10,10 @@ from tqdm import tqdm
 load_dotenv()
 
 # 從環境變量中獲取 OpenAI API 金鑰
-api_key = os.getenv('OPEN_API_KEY')
-
+api_key = os.getenv('OPENAI_API_KEY')
 # 設置您的OpenAI API密鑰
 client = openai.OpenAI(
     api_key=api_key)
-
 
 def preprocess_and_parse_json(json_string):
     # 移除可能的前綴（如 "json", "JSON:", "```json" 等）
@@ -49,38 +47,79 @@ def preprocess_and_parse_json(json_string):
 def validate_tags(tags):
     if not isinstance(tags, dict):
         return False
-    required_keys = ["模特", "上半身", "下半身", "鞋子"]
+    required_keys = ["模特", "上半身", "下半身"]
     return all(key in tags for key in required_keys)
 
+prompt1 = """
+仔細觀察這張圖片中的人物，精確且細膩地描述他的外貌和穿著的所有服飾及配件，提供一個詳細的 multi-tags 列表。確保涵蓋每一個細節，包括顏色、材質、設計、功能和搭配。每類 tag 可有多個以涵蓋所有細節。回覆時按以下格式分別描述模特、上半身、下半身，不可包含多餘內容。
 
-def generate_tags(image_url):
-    prompt = """
-    仔細觀察這張圖片中的人物，精確且細膩地描述他的外貌和穿著的所有服飾及配件，提供一個詳細的 multi-tags 列表。確保涵蓋每一個細節，包括顏色、材質、設計、功能和搭配。每類 tag 可有多個以涵蓋所有細節。回覆時按以下格式分別描述模特、上半身、下半身和鞋子，不可包含多餘內容。
-    
-    json
-    {
-      "模特": "膚色:顏色, 種族:類型, 髮型:描述, 髮色:描述, 身材:描述, 面部特徵:描述, 其他特徵:描述",
-      "上半身": "顏色:顏色, 服裝類型:類型, 設計特點:描述, 材質:材質, 配件:描述（無可略）, 細節:描述",
-      "下半身": "顏色:顏色, 服裝類型:類型, 設計特點:描述, 材質:材質, 配件:描述（無可略）, 細節:描述",
-      "鞋子": "顏色:顏色, 服裝類型:類型, 設計特點:描述, 材質:材質, 細節:描述"
-    }
-    """
+json
+{
+    "模特": "膚色:顏色, 種族:類型, 髮型:描述, 髮色:描述, 身材:描述, 面部特徵:描述, 其他特徵:描述",
+    "上半身": "顏色:顏色, 服裝類型:類型, 設計特點:描述, 材質:材質, 配件:描述（無的話可略）, 細節:描述",
+    "下半身": "顏色:顏色, 服裝類型:類型, 設計特點:描述, 材質:材質, 配件:描述（無的話可略）, 細節:描述"
+}
+"""
+
+prompt2 = """
+仔細觀察這張圖片中的人物，精確且細膩地描述他的外貌和穿著的所有服飾及配件，提供一個詳細的 multi-tags 列表。確保涵蓋每一個細節，包括顏色、材質、設計、功能和搭配等等。可以使用多個 tag 以涵蓋所有細節。回覆時按以下格式分別描述模特、上半身、下半身，不必包含多餘內容。
+json
+{
+    "模特": "描述",
+    "上半身": "描述",
+    "下半身": "描述"
+}
+"""
+
+prompt2_1 = """
+仔細觀察這張圖片中的人物，精確且細膩地描述他的外貌和穿著的所有服飾及配件，提供一個詳細的 multi-tags 列表。確保涵蓋每一個細節，包括顏色、材質、設計、功能和搭配等等。可以使用多個 tag 以涵蓋所有細節。回覆時按以下格式分別描述模特、上半身、下半身，不必包含多餘內容。
+json
+{
+    "模特": "對模特的性別、膚色、身材、身形比例、氣質等方面進行描述",
+    "上半身": "描述上半身穿著",
+    "下半身": "描述下半身穿著，不需包含鞋子"
+}
+"""
+
+prompt3 = """
+仔細觀察這張圖片中的人物，精確且細膩地描述他的外貌和穿著的所有服飾，提供一個詳細的 multi-tags 列表。確保涵蓋每一個細節，包括顏色、材質、設計、功能和搭配等等。可以使用多個 tag 以涵蓋所有細節。回覆時按以下格式分別描述模特、上半身服飾、下半身服飾，不必包含多餘內容。
+json
+{
+    "模特": "對模特的性別、膚色、身材、身形比例、氣質等方面進行描述，請使用繁體中文，並用半形逗號隔開（無法識別的話請回答無法識別），例如：皮膚白皙, 身材微胖",
+    "上半身": "描述上半身服飾的 multi-tags，請使用繁體中文，並用半形逗號隔開，例如：顏色:顏色, 服裝類型:類型, 設計特點:描述, 材質:材質, 細節:其他描述",
+    "下半身": "描述下半身服飾的 multi-tags，請使用繁體中文，並用半形逗號隔開，不需包含鞋子，例如：顏色:淺米色, 服裝類型:寬鬆工裝褲, 材質:混紡棉, 設計:多口袋風格, 細節:口袋位置偏側、帶有一條橙色鏈條裝飾"
+}
+"""
+
+prompt3_1 = """
+仔細觀察這張圖片中的人物，精確且細膩地描述他的外貌和穿著的所有服飾，提供一個詳細的 multi-tags 列表。確保涵蓋每一個細節，包括顏色、材質、設計、功能和搭配等等。可以使用多個 tag 以涵蓋所有細節。回覆時按以下格式分別描述模特、上半身服飾、下半身服飾，不必包含多餘內容。
+json
+{
+    "模特": "對模特的性別、膚色、身材、身形比例、氣質等方面進行描述，請使用繁體中文，並用半形逗號隔開（無法識別的話請回答無法識別），例如：皮膚白皙, 身材微胖",
+    "上半身": "描述上半身服飾的 multi-tags，請使用繁體中文，並用半形逗號隔開",
+    "下半身": "描述下半身服飾的 multi-tags，請使用繁體中文，並用半形逗號隔開，不需包含鞋子"
+}
+"""
+
+
+
+def generate_tags(image_url, prompt):
     try:
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4o-mini",
             messages=[
                 {
                     "role": "user",
                     "content": [
                         {"type": "text", "text": prompt},
-                        {"type": "image_url", "image_url": {
-                            "url": image_url, "detail": "low"}}
+                        {"type": "image_url", "image_url": {"url": image_url}}
                     ]
                 }
             ],
             max_tokens=300
         )
         tags_string = response.choices[0].message.content
+        print("tags_string =", tags_string)
         tags = preprocess_and_parse_json(tags_string)
 
         if tags and validate_tags(tags):
@@ -105,9 +144,11 @@ def save_processed_data(data, filename):
         json.dump(data, f, ensure_ascii=False, indent=4)
 
 
-def main():
-    input_file = 'data.json'
-    output_file = 'processed_data.json'
+def main(prompt, prompt_name):
+    print("Your project api key is", api_key)
+    print("The tested prompt is", prompt)
+    input_file = 'cleansed_output.json'
+    output_file = f'{prompt_name}_processed_data.json'
     batch_size = 10  # 每10張圖片保存一次
 
     # 讀取原始數據
@@ -126,13 +167,20 @@ def main():
     for i, item in enumerate(tqdm(to_process, desc="Processing images"), 1):
         new_item = item.copy()  # 創建原始項目的副本
         image_url = new_item['image_url']
-        tags = generate_tags(image_url)
+        print(image_url)
+        tags = generate_tags(image_url=image_url, prompt=prompt)
 
         if tags:
             new_item['tags'] = tags
         else:
             print(f"無法為圖片生成有效標籤: {image_url}")
-            new_item['tags'] = None
+            tags = generate_tags(image_url=image_url, prompt=prompt)
+            if tags:
+                new_item['tags'] = tags
+                print("Second attempt to generate tags successful")
+            else:
+                new_item['tags'] = None
+                print("Second attempt to generate tags failed")
 
         processed_data.append(new_item)
 
@@ -149,4 +197,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main(prompt=prompt3, prompt_name="prompt3")
+    # main(prompt=prompt3_1, prompt_name="prompt3_1")
