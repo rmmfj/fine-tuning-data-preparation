@@ -1,7 +1,7 @@
 import json
 
 # Load data from output.json
-with open('output.json', 'r', encoding='utf-8') as infile:
+with open('scraped.json', 'r', encoding='utf-8') as infile:
     data_a = json.load(infile)
 
 # cleanse function
