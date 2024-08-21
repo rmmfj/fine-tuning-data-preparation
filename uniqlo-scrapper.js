@@ -1,4 +1,5 @@
 const { chromium } = require('playwright');
+const os = require('os');
 const fs = require('fs');
 const csvWriter = require('csv-write-stream');
 const path = require('path');
@@ -6,9 +7,21 @@ const path = require('path');
 const queries = ['女裝_外套', '女裝_洋裝', '女裝_裙裝', '女裝_褲裝', '女裝_襯衫', '女裝_T恤', '男裝_外套', '男裝_褲裝', '男裝_襯衫', '男裝_T恤'];
 
 const scrapeQuery = async (query) => {
+    const platform = os.platform();
+    let executablePath = '';
+
+    if (platform === 'win32') {
+        executablePath = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
+    } else if (platform === 'darwin') {
+        executablePath = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+    } else if (platform === 'linux') {
+        executablePath = '/usr/bin/google-chrome'; // This might vary based on your Chrome installation
+    } else {
+        throw new Error('Unsupported operating system');
+    }
     const browser = await chromium.launch({
         headless: false, // Set to true for headless mode
-        executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' // Adjust this path to match your Chrome installation
+        executablePath
     });
 
     const context = await browser.newContext();
@@ -90,6 +103,8 @@ const scrapeQuery = async (query) => {
     writer.end();
     await browser.close();
 }
+
+
 
 (async () => {
     const threads = [];
