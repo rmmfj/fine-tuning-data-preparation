@@ -1,4 +1,7 @@
-*.json
+output.json
+data.json
+example_dataset.json
+processed_data.json
 .env
 *.csv
 node_modules/

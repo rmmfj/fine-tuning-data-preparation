@@ -1,0 +1,16 @@
+{
+  "name": "model-fine-tuning",
+  "version": "1.0.0",
+  "description": "本文件詳細描述了該專案從資料收集、資料清洗、標籤生成、資料拆分到模型微調的完整流程，也引用 OpenAI 官方文件中的相關 API 資料，幫助你了解專案流程。",
+  "main": "uniqlo.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "csv-write-stream": "^2.0.0",
+    "playwright": "^1.46.1"
+  }
+}
