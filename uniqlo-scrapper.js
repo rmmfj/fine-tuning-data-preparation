@@ -3,7 +3,7 @@ const fs = require('fs');
 const csvWriter = require('csv-write-stream');
 const path = require('path');
 
-const queries = ['女裝_外套', '女裝_洋裝', '女裝_裙裝', '女裝_褲裝', '女裝_襯衫', '女裝_T恤', '男裝_外套', '男裝_褲子', '男裝_襯衫', '男裝_T恤'];
+const queries = ['女裝_外套', '女裝_洋裝', '女裝_裙裝', '女裝_褲裝', '女裝_襯衫', '女裝_T恤', '男裝_外套', '男裝_褲裝', '男裝_襯衫', '男裝_T恤'];
 
 const scrapeQuery = async (query) => {
     const browser = await chromium.launch({
