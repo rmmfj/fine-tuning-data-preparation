@@ -1,22 +1,69 @@
+import pandas as pd
+import openai
+from tqdm import tqdm
 import json
+from dotenv import load_dotenv
 import os
 import re
+import ast
+import csv
+from IPython.display import display
 
-import openai
-from dotenv import load_dotenv
-from tqdm import tqdm
-
-# 載入 .env 文件中的環境變量
+# Load environment variables from .env file
 load_dotenv()
 
-# 從環境變量中獲取 OpenAI API 金鑰
-api_key = os.getenv("OPEN_API_KEY")
+# Get OpenAI API key from environment variables
+api_key = os.getenv("OPENAI_API_KEY")
 
-# 設置您的OpenAI API密鑰
+# Set your OpenAI API key
 client = openai.OpenAI(api_key=api_key)
 
 
-def preprocess_and_parse_json(json_string):
+def make_prompt_for_image_labeling(clothing_type: str, gender: str) -> str:
+    gender_description = ("男性" if gender == "man" else "女性") if gender else ""
+    prompt = f"""
+    仔細觀察這張圖片中的{gender_description}{'上衣' if clothing_type == 'top' else '下身'}後，提供一個詳細的 multi-tags 列表來描述這件衣物。
+    確保涵蓋每一個細節，包括顏色、材質、設計、功能等。
+    每類可有多個標籤以涵蓋所有細節。需要的話，你可以使用規範以外的標籤來完成你的任務。
+    請使用下方 JSON 格式回覆，回答無需包含其他資訊：
+    {{
+      "顏色": "[顏色]",
+      "服裝類型": "[類型]",
+      "剪裁版型": "[描述]",
+      "設計特點": "[描述]",
+      "材質": "[材質]",
+      "細節": "[描述]",
+      {', '.join(['"領子": "[描述]", "袖子": "[描述]"'] if clothing_type == 'top' else ['"褲管": "[描述]", "裙擺": "[描述]"'])}
+    }}
+    
+    可以參考以下範例：
+    範例一：
+    {{
+      "顏色": "藍色",
+      "服裝類型": "襯衫",
+      "剪裁版型": "修身剪裁",
+      "設計特點": "有口袋",
+      "材質": "羊毛混紡",
+      "細節": "有條紋",
+      "領子": "翻領",
+      "袖子": "長袖"
+    }}
+    範例二：
+    {{
+      "顏色": "黑色",
+      "服裝類型": "長褲",
+      "剪裁版型": "寬鬆剪裁",
+      "設計特點": "高腰",
+      "材質": "可能為棉質或混紡面料",
+      "細節": "有褶皺設計",
+      "褲管": "緊縮褲腳",
+      "裙擺": "無"
+    }}
+    """
+    return prompt
+
+
+def json_to_string(json_string: str) -> dict:
     # 移除可能的前綴（如 "json", "JSON:", "```json" 等）
     json_string = re.sub(
         r"^(json|JSON:?|```json?)\s*", "", json_string, flags=re.IGNORECASE
@@ -45,54 +92,23 @@ def preprocess_and_parse_json(json_string):
         return None
 
 
-def validate_tags(tags):
-    if not isinstance(tags, dict):
-        return False
-    required_keys = ["model", "top", "bottom"]
-    return all(key in tags for key in required_keys)
-
-
-def generate_tags(image_url):
-    prompt = """
-    仔細觀察我的這張圖片，精確且細膩地提供一個詳細的 multi-tags 列表來描述我的特徵，我想跟我的朋友介紹我。
-    確保涵蓋每一個細節，包括顏色、材質、設計、功能和搭配。每類 tag 可有多個以涵蓋所有細節。
-    回覆時按以下格式分別描述 model、top、bottom，不可包含多餘內容。
-    請使用下方 JSON 格式，如有無法辨識的標籤，可以回答無法辨識。
-    可以參考以下範例：
-    {
-        "model": {
-            "膚色": "中等膚色"
-            "種族": "不明"
-            "髮型": "短髮，側邊略微梳向一邊"
-            "髮色": "深色"
-            "身材": "中等身材"
-            "面部特徵": "有著整齊的胡子，友善的笑容"
-        },
-        "top": {
-            "顏色": "藍色",
-            "服裝類型": "襯衫",
-            "剪裁版型": "修身剪裁",
-            "設計特點": "有口袋",
-            "材質": "羊毛混紡",
-            "配件": "無",
-            "細節": "有條紋",
-            "領子": "翻領",
-            "袖子": "長袖"
-        },
-        "bottom": {
-            "顏色": "黑色",
-            "服裝類型": "長褲",
-            "剪裁版型": "寬鬆剪裁",
-            "設計特點": "高腰",
-            "材質": "可能為棉質或混紡面料",
-            "配件": "無",
-            "細節": "有褶皺設計",
-            "褲管": "緊縮褲腳",
-            "裙擺": "無"
-        }
-    }
-    """
+def format_dict_string(dict_obj: dict) -> str:
+    """Convert a dictionary to a formatted string."""
     try:
+        if isinstance(dict_obj, dict):
+            # Format the dictionary into the desired string
+            return ", ".join(f"{key}: {value}" for key, value in dict_obj.items())
+        else:
+            raise ValueError("Input is not a dictionary")
+    except (SyntaxError, ValueError) as e:
+        print(f"Error: {e}")
+        return "Invalid input"
+
+
+def generate_label_string(prompt: str, image_url: str):
+
+    try:
+        # Make a request to OpenAI API for every row
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
@@ -106,84 +122,170 @@ def generate_tags(image_url):
             ],
             max_tokens=500,
         )
-        tags_string = response.choices[0].message.content
-        tags = preprocess_and_parse_json(tags_string)
-        print("tags_string:\n", tags_string)
-        print("tags:\n", tags)
-        if tags and validate_tags(tags):
-            return tags
-        else:
-            print(f"生成的標籤無效或格式不正確: {tags_string}")
-            return None
-    except Exception as e:
-        print(f"生成標籤時發生錯誤: {e}")
+        label_string = response.choices[0].message.content
+        label_string_dict = json_to_string(label_string)
+        print("Label String:", label_string_dict)
+
+        # Convert the JSON-like response to the desired string format
+        label_string_formatted = format_dict_string(label_string_dict)
+        print("Formatted Label String:", label_string_formatted)
+        return label_string_formatted
+
+    except openai.OpenAIError as e:
+        print(f"OpenAI API Error: {e}")
         return None
 
 
-def load_processed_data(filename):
-    if os.path.exists(filename):
-        with open(filename, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return []
-
-
-def save_processed_data(data, filename):
-    with open(filename, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
+# File paths
+items_file = "/Users/chenyuhan/Downloads/codingdata/item.csv"
+series_file = "/Users/chenyuhan/Downloads/codingdata/series.csv"
+item_to_series_file = "/Users/chenyuhan/Downloads/codingdata/item_to_series.csv"
+output_file = "/Users/chenyuhan/Downloads/codingdata/items_with_label_2.csv"
+failed_file = "/Users/chenyuhan/Downloads/codingdata/failed_items.csv"
+processed_file = "/Users/chenyuhan/Downloads/codingdata/processed_items.txt"
 
 
 def main():
-    input_file = "failed_2.json"
-    output_file = "vision.json"
-    failed_file = "failed_3.json"
-    # input_file = "scraped.json"
-    # output_file = "vision.json"
-    # failed_file = "failed.json"
-    batch_size = 10  # 每10張圖片保存一次
 
-    # 讀取原始數據
-    with open(input_file, "r", encoding="utf-8") as f:
-        data = json.load(f)
+    # Load processed item IDs
+    if os.path.exists(processed_file):
+        print("processed file already exists.")
+        with open(processed_file, "r", encoding="utf-8") as f:
+            processed_ids = set(line.strip() for line in f)
+    else:
+        processed_ids = set()
 
-    # 加載已處理的數據
-    processed_data = load_processed_data(output_file)
-    failed_data_3 = load_processed_data(failed_file)
+    # Open the output CSV file in write mode and write the header
+    with open(output_file, "w", encoding="utf-8", newline="") as f_output, open(failed_file, "w", encoding="utf-8", newline="") as failed_output:
+        writer = csv.writer(f_output)
+        writer.writerow(["item_id", "image_url", "label_string", "color"])
+        failed_writer = csv.writer(failed_output)
+        failed_writer.writerow(["item_id", "image_url", "color"])
 
-    # 找出尚未處理的項目
-    processed_urls = set(item["image_url"] for item in processed_data)
-    to_process = [item for item in data if item["image_url"] not in processed_urls]
-    failed_process = []
+        # Load the series data and item_to_series data into memory
+        series_df = pd.read_csv(series_file)
+        item_to_series_df = pd.read_csv(item_to_series_file)
 
-    # 處理每個未處理的項目
-    for i, item in enumerate(tqdm(to_process, desc="Processing images"), 1):
-        new_item = item.copy()  # 創建原始項目的副本
-        image_url = new_item["image_url"]
-        tags = generate_tags(image_url)
+        # Determine the total number of rows to process
+        total_rows = sum(1 for _ in open(items_file)) - 1  # Subtract 1 for the header
 
-        if tags:
-            new_item["tags"] = tags
-            processed_data.append(new_item)
-        else:
-            print(f"無法為圖片生成有效標籤: {image_url}")
-            new_item["tags"] = None
-            failed_process.append(new_item)
+        # Process items.csv in chunks
+        chunk_size = 50  # Adjust this size based on memory and performance needs
 
+        for items_chunk in pd.read_csv(items_file, chunksize=chunk_size):
+            rows_to_save = []  # Buffer to hold rows before saving
+            failed = []
+            # Perform the merge operation
+            merged_chunk = pd.merge(
+                item_to_series_df, items_chunk, on="item_id", how="right"
+            )
+            print("number of items processing:", merged_chunk.shape[0])
+            merged_chunk = pd.merge(merged_chunk, series_df, on="series_id", how="left")
+            print("number of items processing:", merged_chunk.shape[0])
 
-        # 每處理完 batch_size 個項目就保存一次
-        if i % batch_size == 0:
-            save_processed_data(processed_data, output_file)
-            save_processed_data(failed_process, failed_file)
-            print(f"已處理 {i} 張圖片，數據已保存")
+            # Handle missing data
+            merged_chunk.fillna(
+                {"clothing_type": "unknown", "gender": "unknown"}, inplace=True
+            )
 
-    # 處理完所有項目後，再保存一次以確保所有數據都被保存
-    if len(to_process) % batch_size != 0:
-        save_processed_data(processed_data, output_file)
-        save_processed_data(failed_process, failed_file)
+            # Generate prompts for each row in the chunk with progress bar
+            for i, row in tqdm(
+                merged_chunk.iterrows(),
+                total=len(merged_chunk),
+                desc="Processing items",
+                unit="item",
+            ):
+                item_id = row["item_id"]
+                image_url = row["image_url"]
+                color = row["color"]
+                clothing_type = row["clothing_type"]
+                gender = row["gender"]
 
-    print(
-        f"處理完成。共處理 {len(to_process)} 個新項目。最終數據已保存到 {output_file}"
-    )
+                if item_id in processed_ids:
+                    continue
 
+                prompt = make_prompt_for_image_labeling(clothing_type, gender)
+                print("Image URL:", image_url)
+
+                label_string_formatted = generate_label_string(prompt, image_url)
+
+                if label_string_formatted:
+                    # Accumulate the results
+                    rows_to_save.append(
+                        [item_id, image_url, label_string_formatted, color]
+                    )
+                else:
+                    failed.append(
+                        [item_id, image_url, color]
+                    )
+
+                # Mark item_id as processed
+                processed_ids.add(item_id)
+                # Save to the output file every 10 rows
+                if (i + 1) % 10 == 0:
+                    writer.writerows(rows_to_save)
+                    rows_to_save = []  # Clear the buffer
+                    failed_writer.writerow(failed)
+                    failed = []
+                    # Save the processed IDs
+                    with open(processed_file, "a", encoding="utf-8") as f:
+                        f.write("\n".join(processed_ids) + "\n")
+                    processed_ids = set()
+
+            # After processing a chunk, check if there are any remaining rows to save
+            if rows_to_save:
+                writer.writerows(rows_to_save)
+            if failed:
+                failed_writer.writerows(failed)
+            with open(processed_file, "a", encoding="utf-8") as f:
+                f.write("\n".join(processed_ids) + "\n")
+                processed_ids = set()
+
+    print(f"Results saved to {output_file}")
+
+def generate_remains():
+    with open(output_file, "w", encoding="utf-8", newline="") as f_output, open(
+        failed_file, "w", encoding="utf-8", newline=""
+    ) as failed_output:
+        writer = csv.writer(f_output)
+        writer.writerow(["item_id", "image_url", "label_string", "color"])
+        failed_writer = csv.writer(failed_output)
+        failed_writer.writerow(["item_id", "image_url", "color"])
+
+        # Load the series data and item_to_series data into memory
+        series_df = pd.read_csv(series_file)
+        item_to_series_df = pd.read_csv(item_to_series_file)
+        all_items = pd.read_csv(items_file)
+        items_with_label = pd.read_csv("/Users/chenyuhan/Downloads/codingdata/items_with_label.csv")
+        processed_ids = items_with_label["item_id"]
+        undealt_items = all_items[~all_items["item_id"].isin(processed_ids)]
+        
+        # return display(undealt_items)
+        merged_chunk = pd.merge(
+            item_to_series_df, undealt_items, on="item_id", how="right"
+        )
+        print("number of items processing:", merged_chunk.shape[0])
+        merged_chunk = pd.merge(merged_chunk, series_df, on="series_id", how="left")
+        print("number of items processing:", merged_chunk.shape[0])
+
+        # Handle missing data
+        merged_chunk.fillna(
+            {"clothing_type": "unknown", "gender": "unknown"}, inplace=True
+        )
+        
+        rows_to_save = []
+        for index, row in merged_chunk.iterrows():
+            item_id = row["item_id"]
+            image_url = row["image_url"]
+            color = row["color"]
+            clothing_type = row["clothing_type"]
+            gender = row["gender"]
+            prompt = make_prompt_for_image_labeling(gender=gender, clothing_type=clothing_type)
+            label_string_formatted = generate_label_string(image_url=image_url, prompt=prompt)
+            rows_to_save.append([item_id, image_url, label_string_formatted, color])
+        writer.writerows(rows_to_save)
+        return
 
 if __name__ == "__main__":
-    main()
+    # main()
+    generate_remains()
